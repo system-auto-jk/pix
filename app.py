@@ -5,15 +5,21 @@ import time
 import random
 import string
 import os
+import re
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
-# Coloque seu token do Mercado Pago aqui
 ACCESS_TOKEN = 'APP_USR-363066985911462-042421-38576d302723e69d52cca9416a5b1ef7-404686712'
-
-# Armazena temporariamente o status de pagamento
 payment_status = {}
+
+# 🔹 Função para limpar o CPF
+def limpar_cpf(cpf):
+    return ''.join(filter(str.isdigit, cpf))
+
+# 🔹 Função para validar e-mail
+def email_valido(email):
+    return re.match(r"[^@]+@[^@]+\.[^@]+", email)
 
 @app.route('/')
 def index():
@@ -23,27 +29,28 @@ def index():
 def criar_pagamento():
     valor = float(request.form.get('valor'))
     nome = request.form.get('nome', '').strip()
-    cpf = request.form.get('cpf', '').strip()
+    cpf = limpar_cpf(request.form.get('cpf', '').strip())
     email = request.form.get('email', '').strip()
     identificador = request.form.get('identificador', '').strip()
 
-    # Gera um idempotency key único
+    # Gera chave única
     timestamp = str(int(time.time()))
     random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
     idempotency_key = f"PagamentoPix_{timestamp}_{random_suffix}"
 
-    # Monta objeto de pagador (payer)
+    # Monta o payer com validação mínima
     payer = {}
-    if email:
+    if email and email_valido(email):
         payer["email"] = email
     if nome:
         payer["first_name"] = nome
-    if cpf:
+    if cpf and len(cpf) == 11:
         payer["identification"] = {
             "type": "CPF",
             "number": cpf
         }
 
+    # Fallback padrão
     if not payer:
         payer = {
             "email": "cliente@email.com",
@@ -71,7 +78,6 @@ def criar_pagamento():
         qr_code_image = base64.b64decode(qr_base64)
         payment_id = data["id"]
 
-        # Salva imagem do QR Code
         with open("static/qr_code.png", "wb") as img_file:
             img_file.write(qr_code_image)
 
@@ -87,6 +93,7 @@ def criar_pagamento():
                                email=email if email else None,
                                identificador=identificador if identificador else None)
     else:
+        print("❌ ERRO Mercado Pago:", response.status_code, response.json())
         return jsonify({"erro": response.json()}), 400
 
 @app.route('/verificar_pagamento/<int:payment_id>')
@@ -106,7 +113,7 @@ def verificar_pagamento(payment_id):
 def sucesso():
     return render_template('success.html')
 
-# ✅ ESSA PARTE É ESSENCIAL PARA FUNCIONAR NO RENDER
+# 🔹 Obrigatório para funcionar no Render
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
