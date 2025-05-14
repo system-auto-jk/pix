@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pagamento via Pix</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h1 class="text-2xl font-bold mb-6 text-center">Pagamento via Pix</h1>
+
+        {% if not qr_code_img_path %}
+            <form id="paymentForm" action="/criar_pagamento" method="POST" class="space-y-4">
+                <div>
+                    <label for="valor" class="block text-sm font-medium text-gray-700">Digite o valor (R$):</label>
+                    <input type="number" step="0.01" name="valor" id="valor" required
+                           class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <p class="mt-1 text-sm text-gray-500">Insira o valor desejado para o pagamento.</p>
+                </div>
+                <div>
+                    <label for="nome" class="block text-sm font-medium text-gray-700">Nome do Comprador (opcional):</label>
+                    <input type="text" name="nome" id="nome"
+                           class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label for="cpf" class="block text-sm font-medium text-gray-700">CPF (opcional):</label>
+                    <input type="text" name="cpf" id="cpf"
+                           class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700">E-mail (opcional):</label>
+                    <input type="email" name="email" id="email"
+                           class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label for="identificador" class="block text-sm font-medium text-gray-700">Identificador (opcional):</label>
+                    <input type="text" name="identificador" id="identificador"
+                           class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <button type="submit"
+                        class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Gerar QR Code
+                </button>
+            </form>
+        {% else %}
+            <div class="text-center">
+                <p class="text-lg font-medium mb-4">Escaneie o QR Code ou copie o código Pix:</p>
+                <img src="{{ qr_code_img_path }}" alt="QR Code Pix" class="mx-auto mb-4">
+                <div class="mb-4">
+                    <input type="text" id="pixCode" value="{{ pix_code }}" readonly
+                           class="w-full border border-gray-300 rounded-md p-2 text-center">
+                    <button onclick="copyToClipboard()"
+                            class="mt-2 bg-blue-500 text-white py-1 px-4 rounded-md hover:bg-blue-600">
+                        Copiar
+                    </button>
+                    <span id="copiedMessage" class="text-green-500 hidden ml-2">Copiado!</span>
+                </div>
+                <div class="text-sm text-gray-600">
+                    <p><strong>Valor:</strong> R$ {{ "%.2f" % valor }}</p>
+                    {% if nome %}
+                        <p><strong>Nome:</strong> {{ nome }}</p>
+                    {% endif %}
+                    {% if cpf %}
+                        <p><strong>CPF:</strong> {{ cpf }}</p>
+                    {% endif %}
+                    {% if email %}
+                        <p><strong>E-mail:</strong> {{ email }}</p>
+                    {% endif %}
+                    {% if identificador %}
+                        <p><strong>Identificador:</strong> {{ identificador }}</p>
+                    {% endif %}
+                </div>
+                <div class="mt-4">
+                    <div id="loading" class="flex justify-center items-center">
+                        <svg class="animate-spin h-5 w-5 mr-3 text-indigo-600" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Aguardando pagamento...
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function copyToClipboard() {
+            var copyText = document.getElementById("pixCode");
+            copyText.select();
+            document.execCommand("copy");
+            var copiedMessage = document.getElementById("copiedMessage");
+            copiedMessage.classList.remove("hidden");
+            setTimeout(() => copiedMessage.classList.add("hidden"), 2000);
+        }
+
+        {% if qr_code_img_path %}
+        function checkPaymentStatus() {
+            fetch('/verificar_pagamento/{{ payment_id }}')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'approved') {
+                        window.location.href = '/sucesso';
+                    } else if (data.status === 'pending') {
+                        setTimeout(checkPaymentStatus, 5000);
+                    } else {
+                        console.error('Erro ao verificar pagamento');
+                    }
+                });
+        }
+        setTimeout(checkPaymentStatus, 5000);
+        {% endif %}
+    </script>
+</body>
+</html>
