@@ -4,6 +4,7 @@ import base64
 import time
 import random
 import string
+import os
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
@@ -26,12 +27,12 @@ def criar_pagamento():
     email = request.form.get('email', '').strip()
     identificador = request.form.get('identificador', '').strip()
 
-    # Generate a unique idempotency key
+    # Gera um idempotency key único
     timestamp = str(int(time.time()))
     random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
-    idempotency_key = f"Testando Pagamento Online_{timestamp}_{random_suffix}"
+    idempotency_key = f"PagamentoPix_{timestamp}_{random_suffix}"
 
-    # Build the payer object dynamically based on provided fields
+    # Monta objeto de pagador (payer)
     payer = {}
     if email:
         payer["email"] = email
@@ -42,7 +43,7 @@ def criar_pagamento():
             "type": "CPF",
             "number": cpf
         }
-    # Fallback to default values if no payer info is provided
+
     if not payer:
         payer = {
             "email": "cliente@email.com",
@@ -51,7 +52,7 @@ def criar_pagamento():
 
     body = {
         "transaction_amount": valor,
-        "description": "Testando Pagamento Online",
+        "description": "Pagamento Pix via Flask",
         "payment_method_id": "pix",
         "payer": payer
     }
@@ -70,6 +71,7 @@ def criar_pagamento():
         qr_code_image = base64.b64decode(qr_base64)
         payment_id = data["id"]
 
+        # Salva imagem do QR Code
         with open("static/qr_code.png", "wb") as img_file:
             img_file.write(qr_code_image)
 
@@ -104,5 +106,7 @@ def verificar_pagamento(payment_id):
 def sucesso():
     return render_template('success.html')
 
+# ✅ ESSA PARTE É ESSENCIAL PARA FUNCIONAR NO RENDER
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
